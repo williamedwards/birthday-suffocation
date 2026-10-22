@@ -35,6 +35,6 @@ The full record of prompts used to make the game is in the **[prompt log](PROMPT
 
 ## Credits
 
-- Built by William Edwards with Claude Code (Anthropic)
+- Built with Claude Code (Anthropic)
 - Sound effects generated with [ElevenLabs](https://elevenlabs.io)
 - 3D rendering by [three.js](https://threejs.org) (MIT license, included in `vendor/three/`)
