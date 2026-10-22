@@ -1,0 +1,309 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>Birthday Suffocation</title>
+<style>
+  html,body{margin:0;height:100%;overflow:hidden;background:#000;font-family:'Comic Sans MS','Chalkboard SE',sans-serif}
+  #suit{position:fixed;inset:0;pointer-events:none;width:100%;height:100%}
+  #hud{position:fixed;top:14px;left:50%;transform:translateX(-50%);color:#fff;text-align:center;pointer-events:none;text-shadow:2px 2px 0 #000}
+  #o2wrap{width:340px;height:26px;border:3px solid #fff;border-radius:14px;overflow:hidden;background:#300}
+  #o2{height:100%;width:100%;background:linear-gradient(90deg,#3cf,#8ff)}
+  #o2txt{font-size:22px;margin-top:4px}
+  #msg{position:fixed;top:38%;width:100%;text-align:center;color:#ff0;font-size:48px;pointer-events:none;text-shadow:3px 3px 0 #c0c}
+  #info{position:fixed;bottom:14px;left:16px;color:#fff;font-size:18px;pointer-events:none;text-shadow:2px 2px 0 #000}
+  #red{position:fixed;inset:0;pointer-events:none;background:radial-gradient(circle,transparent 30%,rgba(200,0,0,.8));opacity:0}
+  #screen{position:fixed;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;background:rgba(80,20,120,.9);color:#fff;text-align:center;cursor:pointer}
+  #screen h1{font-size:56px;margin:0 0 10px;color:#ffeb3b;text-shadow:4px 4px 0 #c0c}
+  #screen p{font-size:20px;max-width:640px;margin:6px}
+</style>
+</head>
+<body>
+<svg id="suit" viewBox="0 0 160 90" preserveAspectRatio="xMidYMid slice">
+  <defs>
+    <filter id="soft"><feGaussianBlur stdDeviation="2.2"/></filter>
+    <mask id="holes">
+      <rect x="-200" y="-200" width="560" height="490" fill="white"/>
+      <g filter="url(#soft)">
+        <ellipse id="eyeL" cx="60" cy="45" rx="17" ry="14" fill="black"/>
+        <ellipse id="eyeR" cx="100" cy="45" rx="17" ry="14" fill="black"/>
+      </g>
+    </mask>
+  </defs>
+  <rect x="-200" y="-200" width="560" height="490" fill="#6a2c91" mask="url(#holes)"/>
+</svg>
+<div id="red"></div>
+<div id="hud"><div id="o2wrap"><div id="o2"></div></div><div id="o2txt">O₂ 60.0s</div></div>
+<div id="msg"></div>
+<div id="info">Shears: <b>not found</b> &nbsp;|&nbsp; WASD move · Shift run (uses more air) · Mouse look</div>
+<div id="screen"><h1>BIRTHDAY SUFFOCATION</h1>
+  <p>You're the purple dinosaur at little Timmy's party. The suit zipper is jammed and you're running out of air!</p>
+  <p>Grab <b style="color:#4f4">green air tanks</b> for +15s. Find the <b style="color:#f44">giant red shears</b> to cut yourself free.</p>
+  <p>Kids in party hats will hug you. Hugs are sweet. Hugs are paralysing.</p>
+  <p><b>Click to start</b></p></div>
+
+<script type="importmap">{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js","three/addons/":"https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"}}</script>
+<script type="module">
+import * as THREE from 'three';
+import { PointerLockControls } from 'three/addons/controls/PointerLockControls.js';
+
+const YARD = 30; // half-size
+const renderer = new THREE.WebGLRenderer({ antialias: true });
+renderer.setSize(innerWidth, innerHeight);
+renderer.shadowMap.enabled = true;
+document.body.prepend(renderer.domElement);
+
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(0x87ceeb);
+scene.fog = new THREE.Fog(0x87ceeb, 30, 90);
+const camera = new THREE.PerspectiveCamera(70, innerWidth / innerHeight, 0.1, 200);
+camera.position.set(0, 1.7, 20);
+
+scene.add(new THREE.HemisphereLight(0xffffff, 0x88cc66, 0.8));
+const sun = new THREE.DirectionalLight(0xfff2cc, 1.6);
+sun.position.set(20, 40, 10);
+sun.castShadow = true;
+sun.shadow.mapSize.set(2048, 2048);
+Object.assign(sun.shadow.camera, { left: -40, right: 40, top: 40, bottom: -40 });
+scene.add(sun);
+
+const mat = c => new THREE.MeshLambertMaterial({ color: c });
+function mesh(geo, color, x, y, z, parent = scene) {
+  const m = new THREE.Mesh(geo, mat(color));
+  m.position.set(x, y, z); m.castShadow = m.receiveShadow = true;
+  parent.add(m); return m;
+}
+
+// Ground, fence, house
+const ground = mesh(new THREE.PlaneGeometry(200, 200), 0x5cb85c, 0, 0, 0);
+ground.rotation.x = -Math.PI / 2;
+for (let i = -YARD; i <= YARD; i += 1.5) {
+  for (const [x, z] of [[i, -YARD], [i, YARD], [-YARD, i], [YARD, i]])
+    mesh(new THREE.BoxGeometry(0.3, 2, 0.3), 0xf5f0e1, x, 1, z);
+}
+const house = mesh(new THREE.BoxGeometry(24, 9, 6), 0xd98c5f, 0, 4.5, -YARD - 3);
+mesh(new THREE.BoxGeometry(3, 5, 0.2), 0x7a4a2a, 0, 2.5, -YARD);
+
+const obstacles = []; // {x,z,r}
+function obstacle(x, z, r) { obstacles.push({ x, z, r }); }
+
+// Party table + cake
+mesh(new THREE.BoxGeometry(6, 0.2, 2.5), 0xffffff, 0, 1, 0);
+for (const [x, z] of [[-2.8, -1.1], [2.8, -1.1], [-2.8, 1.1], [2.8, 1.1]]) mesh(new THREE.BoxGeometry(0.15, 1, 0.15), 0x888888, x, 0.5, z);
+mesh(new THREE.CylinderGeometry(0.7, 0.7, 0.5, 24), 0xff9ec7, 0, 1.35, 0);
+mesh(new THREE.CylinderGeometry(0.5, 0.5, 0.35, 24), 0xfff3b0, 0, 1.78, 0);
+for (let i = 0; i < 6; i++) {
+  const a = i / 6 * Math.PI * 2;
+  mesh(new THREE.CylinderGeometry(0.03, 0.03, 0.25), 0x44aaff, Math.cos(a) * 0.3, 2.07, Math.sin(a) * 0.3);
+  const f = mesh(new THREE.SphereGeometry(0.05), 0xffaa00, Math.cos(a) * 0.3, 2.23, Math.sin(a) * 0.3);
+  f.material = new THREE.MeshBasicMaterial({ color: 0xffcc00 });
+}
+for (let i = 0; i < 8; i++) mesh(new THREE.CylinderGeometry(0.2, 0.15, 0.1, 12), [0xff4444, 0x44ff44, 0x4444ff, 0xffff44][i % 4], -2.5 + i * 0.7, 1.15, 0.9);
+obstacle(-2, 0, 1.5); obstacle(0, 0, 1.5); obstacle(2, 0, 1.5);
+
+// Tree + pinata
+function tree(x, z, s = 1) {
+  mesh(new THREE.CylinderGeometry(0.4 * s, 0.5 * s, 5 * s), 0x6b4226, x, 2.5 * s, z);
+  mesh(new THREE.SphereGeometry(3 * s, 12, 10), 0x2e8b2e, x, 6 * s, z);
+  obstacle(x, z, 0.8 * s);
+}
+tree(-14, -10, 1.2); tree(18, 14); tree(-20, 18, 0.9); tree(22, -20, 1.1);
+const pinata = new THREE.Group(); pinata.position.set(-11.5, 3.2, -10); scene.add(pinata);
+mesh(new THREE.BoxGeometry(1.4, 0.8, 0.6), 0xff66cc, 0, 0, 0, pinata);
+mesh(new THREE.BoxGeometry(0.5, 0.9, 0.5), 0x66ccff, 0.7, 0.4, 0, pinata);
+for (const x of [-0.5, 0.5]) mesh(new THREE.BoxGeometry(0.2, 0.7, 0.2), 0xffee55, x, -0.7, 0, pinata);
+mesh(new THREE.CylinderGeometry(0.01, 0.01, 2.5), 0xffffff, -11.5, 4.9, -10);
+
+// Balloons, presents, bouncy castle
+const balloons = [];
+for (let i = 0; i < 18; i++) {
+  const x = (Math.random() - 0.5) * YARD * 1.8, z = (Math.random() - 0.5) * YARD * 1.8;
+  const b = mesh(new THREE.SphereGeometry(0.45, 12, 10), new THREE.Color().setHSL(Math.random(), 0.9, 0.55), x, 3 + Math.random() * 2, z);
+  b.scale.y = 1.2; balloons.push(b);
+}
+for (let i = 0; i < 10; i++) {
+  const s = 0.4 + Math.random() * 0.5;
+  mesh(new THREE.BoxGeometry(s, s, s), new THREE.Color().setHSL(Math.random(), 0.8, 0.6), 4 + Math.random() * 3, s / 2, 2 + Math.random() * 2);
+}
+mesh(new THREE.BoxGeometry(7, 3, 7), 0xff3366, 14, 1.5, -6);
+for (const [x, z] of [[-3, -3], [3, -3], [-3, 3], [3, 3]]) mesh(new THREE.CylinderGeometry(0.6, 0.6, 5), 0xffdd00, 14 + x, 2.5, -6 + z);
+obstacle(14, -6, 4.8);
+
+// Kids
+const kids = [];
+function makeKid(x, z) {
+  const g = new THREE.Group(); g.position.set(x, 0, z);
+  const shirt = new THREE.Color().setHSL(Math.random(), 0.8, 0.55);
+  const skin = [0xffdbac, 0xe0ac69, 0x8d5524, 0xc68642][Math.floor(Math.random() * 4)];
+  mesh(new THREE.CylinderGeometry(0.25, 0.3, 0.8), shirt, 0, 0.8, 0, g);
+  for (const lx of [-0.12, 0.12]) mesh(new THREE.CylinderGeometry(0.08, 0.08, 0.45), 0x2244aa, lx, 0.22, 0, g);
+  for (const ax of [-0.35, 0.35]) { const a = mesh(new THREE.CylinderGeometry(0.06, 0.06, 0.55), skin, ax, 0.95, 0.15, g); a.rotation.x = -1.2; }
+  mesh(new THREE.SphereGeometry(0.28, 14, 12), skin, 0, 1.45, 0, g);
+  for (const ex of [-0.1, 0.1]) mesh(new THREE.SphereGeometry(0.04), 0x000000, ex, 1.5, 0.25, g);
+  mesh(new THREE.ConeGeometry(0.2, 0.5, 14), new THREE.Color().setHSL(Math.random(), 1, 0.5), 0, 1.92, 0, g);
+  mesh(new THREE.SphereGeometry(0.07), 0xffffff, 0, 2.18, 0, g);
+  scene.add(g);
+  kids.push({ g, speed: 2.6 + Math.random() * 1.6, cooldown: 2 + Math.random() * 3, phase: Math.random() * 10 });
+}
+for (let i = 0; i < 7; i++) {
+  const a = Math.random() * Math.PI * 2;
+  makeKid(Math.cos(a) * (8 + Math.random() * 15), Math.sin(a) * (8 + Math.random() * 15));
+}
+
+// Pickups
+function randSpot(minDist) {
+  for (;;) {
+    const x = (Math.random() - 0.5) * (YARD * 2 - 4), z = (Math.random() - 0.5) * (YARD * 2 - 4);
+    if (Math.hypot(x - camera.position.x, z - camera.position.z) < minDist) continue;
+    if (obstacles.some(o => Math.hypot(x - o.x, z - o.z) < o.r + 1)) continue;
+    return [x, z];
+  }
+}
+const tanks = [];
+function makeTank() {
+  const g = new THREE.Group();
+  mesh(new THREE.CylinderGeometry(0.25, 0.25, 0.9, 16), 0x22dd44, 0, 0, 0, g);
+  mesh(new THREE.CylinderGeometry(0.1, 0.1, 0.2), 0xcccccc, 0, 0.55, 0, g);
+  const [x, z] = randSpot(8); g.position.set(x, 0.8, z);
+  scene.add(g); tanks.push(g);
+}
+for (let i = 0; i < 5; i++) makeTank();
+
+const shears = new THREE.Group();
+for (const s of [1, -1]) {
+  const blade = mesh(new THREE.BoxGeometry(0.12, 0.05, 1.2), 0xdddddd, 0, 0, 0.5, shears);
+  blade.rotation.y = s * 0.25;
+  const handle = mesh(new THREE.TorusGeometry(0.2, 0.06, 8, 16), 0xff2222, s * 0.25, 0, -0.35, shears);
+  handle.rotation.x = Math.PI / 2;
+}
+{ const [x, z] = randSpot(32); shears.position.set(x, 1, z); }
+const beacon = new THREE.Mesh(new THREE.CylinderGeometry(0.15, 0.15, 30), new THREE.MeshBasicMaterial({ color: 0xff2222, transparent: true, opacity: 0.25 }));
+beacon.position.set(shears.position.x, 15, shears.position.z);
+scene.add(shears, beacon);
+
+// Controls / state
+const controls = new PointerLockControls(camera, document.body);
+const screen = document.getElementById('screen'), msgEl = document.getElementById('msg');
+const o2Bar = document.getElementById('o2'), o2Txt = document.getElementById('o2txt'), red = document.getElementById('red');
+const eyeL = document.getElementById('eyeL'), eyeR = document.getElementById('eyeR');
+let state = 'menu', oxygen = 60, hugTime = 0, hugImmune = 0, msgTimer = 0, bob = 0;
+const keys = {};
+addEventListener('keydown', e => keys[e.code] = true);
+addEventListener('keyup', e => keys[e.code] = false);
+screen.addEventListener('click', () => {
+  if (state === 'over') return location.reload();
+  controls.lock();
+});
+controls.addEventListener('lock', () => { screen.style.display = 'none'; if (state === 'menu') state = 'play'; });
+controls.addEventListener('unlock', () => { if (state === 'play') { screen.style.display = 'flex'; screen.innerHTML = '<h1>PAUSED</h1><p>Click to resume (still suffocating)</p>'; } });
+
+function flash(t, d = 1.5) { msgEl.textContent = t; msgTimer = d; }
+function end(win) {
+  state = 'over'; controls.unlock();
+  screen.style.display = 'flex';
+  screen.innerHTML = win
+    ? `<h1>FREEDOM!</h1><p>You slice open the suit and gulp sweet summer air. Timmy is traumatised. You are alive.</p><p>Oxygen to spare: ${oxygen.toFixed(1)}s</p><p><b>Click to play again</b></p>`
+    : `<h1>YOU PASSED OUT</h1><p>The kids think it's part of the show. They pile on for one last hug.</p><p><b>Click to try again</b></p>`;
+}
+
+const clock = new THREE.Clock();
+const fwd = new THREE.Vector3(), right = new THREE.Vector3();
+function loop() {
+  requestAnimationFrame(loop);
+  const dt = Math.min(clock.getDelta(), 0.05), t = clock.elapsedTime;
+  balloons.forEach((b, i) => b.position.y += Math.sin(t + i) * 0.003);
+  pinata.rotation.y = Math.sin(t * 0.7) * 0.4;
+  shears.rotation.y += dt * 2; shears.position.y = 1 + Math.sin(t * 3) * 0.15;
+  tanks.forEach(k => k.rotation.y += dt * 1.5);
+
+  if (state === 'play') {
+    const running = keys.ShiftLeft || keys.ShiftRight;
+    oxygen -= dt * (running ? 1.8 : 1);
+    if (hugTime > 0) { oxygen -= dt * 0.5; hugTime -= dt; }
+    hugImmune -= dt;
+
+    // movement
+    if (hugTime <= 0) {
+      camera.getWorldDirection(fwd); fwd.y = 0; fwd.normalize();
+      right.crossVectors(fwd, camera.up);
+      const mv = new THREE.Vector3();
+      if (keys.KeyW || keys.ArrowUp) mv.add(fwd);
+      if (keys.KeyS || keys.ArrowDown) mv.sub(fwd);
+      if (keys.KeyD || keys.ArrowRight) mv.add(right);
+      if (keys.KeyA || keys.ArrowLeft) mv.sub(right);
+      if (mv.lengthSq()) {
+        mv.normalize().multiplyScalar((running ? 7.5 : 4.5) * dt);
+        camera.position.add(mv);
+        bob += dt * (running ? 14 : 9);
+      }
+    }
+    const p = camera.position;
+    p.x = THREE.MathUtils.clamp(p.x, -YARD + 0.6, YARD - 0.6);
+    p.z = THREE.MathUtils.clamp(p.z, -YARD + 0.6, YARD - 0.6);
+    for (const o of obstacles) {
+      const dx = p.x - o.x, dz = p.z - o.z, d = Math.hypot(dx, dz), r = o.r + 0.4;
+      if (d < r) { p.x = o.x + dx / d * r; p.z = o.z + dz / d * r; }
+    }
+    p.y = 1.7 + Math.sin(bob) * 0.08 + (hugTime > 0 ? Math.sin(t * 40) * 0.03 : 0);
+
+    // kids
+    for (const k of kids) {
+      k.cooldown -= dt;
+      const g = k.g, dx = p.x - g.position.x, dz = p.z - g.position.z, d = Math.hypot(dx, dz);
+      g.rotation.y = Math.atan2(dx, dz);
+      if (k.cooldown > 0) {
+        // wander away after a hug
+        g.position.x -= dx / d * dt * 1.5; g.position.z -= dz / d * dt * 1.5;
+      } else if (d > 1.0) {
+        g.position.x += dx / d * k.speed * dt; g.position.z += dz / d * k.speed * dt;
+      } else if (hugImmune <= 0) {
+        hugTime = 2; hugImmune = 3; k.cooldown = 4;
+        flash(['BIG HUG!', 'I LOVE YOU BARNEY!', 'SQUEEEEZE!', 'GROUP HUG!'][Math.floor(Math.random() * 4)], 2);
+      }
+      for (const o of obstacles) {
+        const ox = g.position.x - o.x, oz = g.position.z - o.z, od = Math.hypot(ox, oz);
+        if (od < o.r) { g.position.x = o.x + ox / od * o.r; g.position.z = o.z + oz / od * o.r; }
+      }
+      g.position.y = Math.abs(Math.sin(t * 10 + k.phase)) * 0.15;
+    }
+
+    // pickups
+    for (let i = tanks.length - 1; i >= 0; i--) {
+      if (Math.hypot(p.x - tanks[i].position.x, p.z - tanks[i].position.z) < 1.2) {
+        scene.remove(tanks[i]); tanks.splice(i, 1);
+        oxygen = Math.min(oxygen + 15, 90); flash('+15s AIR!'); makeTank();
+      }
+    }
+    if (Math.hypot(p.x - shears.position.x, p.z - shears.position.z) < 1.4) return end(true);
+    if (oxygen <= 0) { oxygen = 0; return end(false); }
+
+    if ((msgTimer -= dt) <= 0) msgEl.textContent = '';
+  }
+
+  // HUD + suffocation effects
+  const frac = oxygen / 60;
+  o2Bar.style.width = Math.min(100, frac * 100) + '%';
+  o2Bar.style.background = oxygen < 15 ? '#f33' : oxygen < 30 ? '#fa3' : 'linear-gradient(90deg,#3cf,#8ff)';
+  o2Txt.textContent = `O₂ ${oxygen.toFixed(1)}s`;
+  const panic = THREE.MathUtils.clamp(1 - oxygen / 20, 0, 1);
+  red.style.opacity = panic * (0.6 + 0.4 * Math.sin(t * (4 + panic * 6)));
+  // eyeholes shrink & shift as you run low, plus breathing
+  const breathe = 1 + Math.sin(t * (2 + panic * 6)) * 0.04;
+  const shrink = 1 - panic * 0.4;
+  const sway = Math.sin(bob * 0.5) * 1.2;
+  for (const [e, cx] of [[eyeL, 60], [eyeR, 100]]) {
+    e.setAttribute('rx', 17 * shrink * breathe);
+    e.setAttribute('ry', 14 * shrink * breathe * (hugTime > 0 ? 0.6 : 1));
+    e.setAttribute('cx', cx + sway);
+  }
+  renderer.render(scene, camera);
+}
+loop();
+
+addEventListener('resize', () => {
+  camera.aspect = innerWidth / innerHeight; camera.updateProjectionMatrix();
+  renderer.setSize(innerWidth, innerHeight);
+});
+</script>
+</body>
+</html>
