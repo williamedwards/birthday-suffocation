@@ -181,6 +181,34 @@ const beacon = new THREE.Mesh(new THREE.CylinderGeometry(0.15, 0.15, 30), new TH
 beacon.position.set(shears.position.x, 15, shears.position.z);
 scene.add(shears, beacon);
 
+// Audio: per-sound gain balances the raw ElevenLabs levels; "outside" sounds go through a lowpass to sound muffled by the suit
+const actx = new AudioContext();
+const master = actx.createGain(); master.connect(actx.destination);
+const muffle = actx.createBiquadFilter(); muffle.type = 'lowpass'; muffle.frequency.value = 1200; muffle.connect(master);
+const SFX = {
+  ambience: { gain: 0.9, outside: true }, breathing: { gain: 1.4 }, heartbeat: { gain: 0.7 },
+  giggle: { gain: 0.8, outside: true }, hug: { gain: 0.8 }, tank_hiss: { gain: 0.6 },
+  win: { gain: 1.2 }, lose: { gain: 4 },
+};
+const buffers = {};
+const sfxReady = Promise.all(Object.keys(SFX).map(async n => {
+  const data = await (await fetch(`sfx/${n}.mp3`)).arrayBuffer();
+  buffers[n] = await actx.decodeAudioData(data);
+})).catch(e => console.warn('SFX failed to load', e));
+function play(name, { loop = false, gain = 1, out = SFX[name].outside ? muffle : master } = {}) {
+  if (!buffers[name]) return null;
+  const src = actx.createBufferSource(); src.buffer = buffers[name]; src.loop = loop;
+  const g = actx.createGain(); g.gain.value = SFX[name].gain * gain;
+  src.connect(g).connect(out); src.start();
+  return { src, g, base: SFX[name].gain };
+}
+let loops = null;
+function startLoops() {
+  if (loops) return;
+  loops = { ambience: play('ambience', { loop: true }), breathing: play('breathing', { loop: true }), heartbeat: play('heartbeat', { loop: true, gain: 0 }) };
+}
+function stopLoops(...names) { for (const n of names) loops?.[n]?.src.stop(); }
+
 // Controls / state
 const controls = new PointerLockControls(camera, document.body);
 const screen = document.getElementById('screen'), msgEl = document.getElementById('msg');
@@ -194,12 +222,17 @@ screen.addEventListener('click', () => {
   if (state === 'over') return location.reload();
   controls.lock();
 });
-controls.addEventListener('lock', () => { screen.style.display = 'none'; if (state === 'menu') state = 'play'; });
-controls.addEventListener('unlock', () => { if (state === 'play') { screen.style.display = 'flex'; screen.innerHTML = '<h1>PAUSED</h1><p>Click to resume (still suffocating)</p>'; } });
+controls.addEventListener('lock', () => {
+  screen.style.display = 'none'; if (state === 'menu') state = 'play';
+  actx.resume(); sfxReady.then(() => { if (state === 'play') startLoops(); });
+});
+controls.addEventListener('unlock', () => { if (state === 'play') { actx.suspend(); screen.style.display = 'flex'; screen.innerHTML = '<h1>PAUSED</h1><p>Click to resume (still suffocating)</p>'; } });
 
 function flash(t, d = 1.5) { msgEl.textContent = t; msgTimer = d; }
 function end(win) {
   state = 'over'; controls.unlock();
+  stopLoops('breathing', 'heartbeat', ...(win ? [] : ['ambience']));
+  play(win ? 'win' : 'lose');
   screen.style.display = 'flex';
   screen.innerHTML = win
     ? `<h1>FREEDOM!</h1><p>You slice open the suit and gulp sweet summer air. Timmy is traumatised. You are alive.</p><p>Oxygen to spare: ${oxygen.toFixed(1)}s</p><p><b>Click to play again</b></p>`
@@ -258,6 +291,7 @@ function loop() {
         g.position.x += dx / d * k.speed * dt; g.position.z += dz / d * k.speed * dt;
       } else if (hugImmune <= 0) {
         hugTime = 2; hugImmune = 3; k.cooldown = 4;
+        play('giggle'); play('hug');
         flash(['BIG HUG!', 'I LOVE YOU BARNEY!', 'SQUEEEEZE!', 'GROUP HUG!'][Math.floor(Math.random() * 4)], 2);
       }
       for (const o of obstacles) {
@@ -272,6 +306,7 @@ function loop() {
       if (Math.hypot(p.x - tanks[i].position.x, p.z - tanks[i].position.z) < 1.2) {
         scene.remove(tanks[i]); tanks.splice(i, 1);
         oxygen = Math.min(oxygen + 15, 90); flash('+15s AIR!'); makeTank();
+        play('tank_hiss');
       }
     }
     if (Math.hypot(p.x - shears.position.x, p.z - shears.position.z) < 1.4) return end(true);
@@ -287,6 +322,14 @@ function loop() {
   o2Txt.textContent = `O₂ ${oxygen.toFixed(1)}s`;
   const panic = THREE.MathUtils.clamp(1 - oxygen / 20, 0, 1);
   red.style.opacity = panic * (0.6 + 0.4 * Math.sin(t * (4 + panic * 6)));
+  if (loops && state === 'play') {
+    // breathing speeds up and gets louder as air runs out; heartbeat fades in
+    const now = actx.currentTime;
+    loops.breathing.src.playbackRate.setTargetAtTime(1 + panic * 0.5, now, 0.3);
+    loops.breathing.g.gain.setTargetAtTime(loops.breathing.base * (1 + panic * 0.5), now, 0.3);
+    loops.heartbeat.g.gain.setTargetAtTime(loops.heartbeat.base * panic, now, 0.3);
+    loops.heartbeat.src.playbackRate.setTargetAtTime(1 + panic * 0.3, now, 0.3);
+  }
   // eyeholes shrink & shift as you run low, plus breathing
   const breathe = 1 + Math.sin(t * (2 + panic * 6)) * 0.04;
   const shrink = 1 - panic * 0.4;

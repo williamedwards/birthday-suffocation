@@ -1,0 +1,48 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>SFX Audition</title>
+<style>
+  body{font-family:sans-serif;background:#2a1440;color:#fff;max-width:640px;margin:30px auto;padding:0 16px}
+  h1{color:#ffeb3b}
+  .row{display:flex;align-items:center;gap:12px;padding:10px;border-bottom:1px solid #553}
+  .row b{width:110px}
+  .row span{flex:1;font-size:14px;color:#ccb}
+  button{font-size:16px;padding:6px 14px;cursor:pointer}
+</style>
+</head>
+<body>
+<h1>SFX Audition</h1>
+<p>Loops (🔁) repeat until you stop them, so you can hear the seam.</p>
+<div id="list"></div>
+<script>
+const sounds = [
+  ['tank_hiss', 'Air tank pickup', false],
+  ['breathing', 'Muffled breathing in suit', true],
+  ['heartbeat', 'Low-oxygen heartbeat', true],
+  ['giggle', 'Kids giggling (hug start)', false],
+  ['hug', 'Rubber suit squeeze', false],
+  ['win', 'Shears snip + deflate', false],
+  ['lose', 'Gasp + thud (quiet, will be boosted)', false],
+  ['ambience', 'Party background', true],
+];
+let current;
+for (const [name, desc, loop] of sounds) {
+  const row = document.createElement('div');
+  row.className = 'row';
+  row.innerHTML = `<b>${name}${loop ? ' 🔁' : ''}</b><span>${desc}</span><button>▶ Play</button>`;
+  const btn = row.querySelector('button');
+  const audio = new Audio(name + '.mp3');
+  audio.loop = loop;
+  audio.onended = () => btn.textContent = '▶ Play';
+  btn.onclick = () => {
+    if (current && current !== audio) { current.pause(); current.btn.textContent = '▶ Play'; }
+    if (audio.paused) { audio.currentTime = 0; audio.play(); btn.textContent = '■ Stop'; current = audio; current.btn = btn; }
+    else { audio.pause(); btn.textContent = '▶ Play'; }
+  };
+  document.getElementById('list').append(row);
+}
+</script>
+</body>
+</html>
