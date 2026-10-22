@@ -42,10 +42,10 @@
   <p>Kids in party hats will hug you. Hugs are sweet. Hugs are paralysing.</p>
   <p><b>Click to start</b></p></div>
 
-<script type="importmap">{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js","three/addons/":"https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"}}</script>
+<script type="importmap">{"imports":{"three":"./vendor/three/three.module.js"}}</script>
 <script type="module">
 import * as THREE from 'three';
-import { PointerLockControls } from 'three/addons/controls/PointerLockControls.js';
+import { PointerLockControls } from './vendor/three/PointerLockControls.js';
 
 const YARD = 30; // half-size
 const renderer = new THREE.WebGLRenderer({ antialias: true });
