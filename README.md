@@ -1,3 +1,5 @@
+**Play now on Itch.IO:** [https://aembear.itch.io/birthday-suffocation](https://aembear.itch.io/birthday-suffocation) 
+
 # Birthday Suffocation
 
 You're the big purple dinosaur at a backyard children's birthday party, and the zipper on your inflatable suit is jammed. You're running out of air.
